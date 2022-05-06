@@ -564,6 +564,16 @@ def create_seg_info(result):
 annotation_id_panoptic = 0
 
 def create_panoptic_annotation_format(image_id, file_name, result):
+    """Create Panoptic format dictionary
+
+    Args:
+        image_id (int): the id of the image for getting mode details about it
+        file_name (string): name of the image being saved with panoptic details
+        result (prediction dict): Output from the model
+
+    Returns:
+        _type_: _description_
+    """
     segments_info =create_seg_info(result)
     annotation = {
         "segments_info": segments_info,
