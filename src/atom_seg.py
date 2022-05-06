@@ -392,6 +392,72 @@ def create_annotation_format2(masks, category_id, image_id):
         'segmentation': seg
     }
 
+from .pycococreatortools import resize_binary_mask, binary_mask_to_polygon, binary_mask_to_rle
+
+def create_annotation_info(image_id, category_id, binary_mask, 
+                           image_size=None, tolerance=2, bounding_box=None):
+    global annotation_id
+    if image_size is not None:
+        binary_mask = resize_binary_mask(binary_mask, image_size)
+
+    binary_mask_encoded = mask.encode(np.asfortranarray(binary_mask.astype(np.uint8)))
+
+    area = mask.area(binary_mask_encoded)
+    if area < 1:
+        return None
+
+    if bounding_box is None:
+        bounding_box = mask.toBbox(binary_mask_encoded)
+
+    # if category_info["is_crowd"]:
+    #     is_crowd = 1
+    #     segmentation = binary_mask_to_rle(binary_mask)
+    # else :
+    is_crowd = 0
+    segmentation = binary_mask_to_polygon(binary_mask, tolerance)
+    if not segmentation:
+        return None
+    annotation_id += 1
+    annotation_info = {
+        "id": annotation_id,
+        "image_id": image_id,
+        "category_id": category_id,
+        "iscrowd": is_crowd,
+        "area": area.tolist(),
+        "bbox": bounding_box.tolist(),
+        "segmentation": segmentation,
+        "width": binary_mask.shape[1],
+        "height": binary_mask.shape[0],
+    } 
+
+    return annotation_info 
+
+def mask_to_mscoco(alpha, annotations, img_id, mode='rle'):
+        if mode == 'rle':
+            in_ = np.reshape(np.asfortranarray(alpha), (alpha.shape[0], alpha.shape[1], 1))
+            in_ = np.asfortranarray(in_)
+            rle = mask.encode(in_)
+            segmentation = rle[0]
+        else:
+            raise ValueError('Unknown mask mode "{}"'.format(mode))
+        for idx, c in enumerate(np.unique(alpha)):
+            area = mask.area(rle).tolist()
+            if isinstance(area, list):
+                area = area[0]
+            bbox = mask.toBbox(rle).tolist()
+            if isinstance(bbox[0], list):
+                bbox = bbox[0]
+            annotation = {
+                'area': area,
+                'bbox': bbox,
+                'category_id': c,
+                'id': len(annotations)+idx,
+                'image_id': img_id,
+                'iscrowd': 0,
+                'segmentation': segmentation}
+            annotations.append(annotation)
+        return annotations 
+
 def create_category_annotation(category_dict):
     # category_list = []
     global category_list
@@ -498,6 +564,16 @@ def create_seg_info(result):
 annotation_id_panoptic = 0
 
 def create_panoptic_annotation_format(image_id, file_name, result):
+    """Create Panoptic format dictionary
+
+    Args:
+        image_id (int): the id of the image for getting mode details about it
+        file_name (string): name of the image being saved with panoptic details
+        result (prediction dict): Output from the model
+
+    Returns:
+        _type_: _description_
+    """
     segments_info =create_seg_info(result)
     annotation = {
         "segments_info": segments_info,
